@@ -43,7 +43,7 @@ public class UserBroker : IUserBroker
                 user = DBUtils.GetUserFromReader(reader);
             }
             await reader.CloseAsync();
-            await dbConn.CloseAsync();
+            await connection.CloseAsync();
         }
         catch (Exception ex)
         {
