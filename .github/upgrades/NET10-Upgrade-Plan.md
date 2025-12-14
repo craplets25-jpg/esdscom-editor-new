@@ -17,7 +17,19 @@ Execute steps below sequentially one by one in the order they are listed.
    - `xsdNavigator/xsdNavigator.csproj`
    - `Tests/eSDSCom.AuthoringTool.Tests/eSDSCom.Editor.Tests.csproj`
 
-4. Run unit tests and fix compilation/test failures.
+4. Run unit tests and fix compilation/test failures. (Note: tests currently require an Azure Key Vault secret for the test DB connection. See findings below.)
+
+
+### Test run findings
+
+- Running the test suite hit failures due to networking access to Azure Key Vault while attempting to retrieve `ConnectionString` in `Tests/BaseTestData.cs`.
+- The upgrade changes were applied and the solution now builds under .NET 10. Tests fail when Key Vault is unreachable; you can fix this by setting environment variable `TEST_CONNECTION_STRING` to a connection string for a test Postgres database accessible from your machine/CI, or by mocking Key Vault calls in tests.
+
+Suggested next steps:
+- Set `TEST_CONNECTION_STRING` in CI and local test runners, or
+- Modify `BaseTestData` to prefer `TEST_CONNECTION_STRING` environment variable and gracefully skip tests when not present, or
+- Introduce local test doubles/mocks for Key Vault and DB access so tests pass in offline/CI environments.
+
 5. Review and update NuGet package versions where required (security or compatibility updates).
 6. Update CI workflows and README docs to require .NET 10 SDK and any new build steps.
 7. Commit changes on branch `upgrade-to-NET10`, push branch, and open a pull request to `main` with upgrade notes and test results.
