@@ -1,13 +1,43 @@
-﻿<AppState>
-    <Router AppAssembly="@typeof(App).Assembly">
-        <Found Context="routeData">
-            <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-        </Found>
-        <NotFound>
-            <LayoutView Layout="@typeof(MainLayout)">
-                <p role="alert">Sorry, there's nothing at this address.</p>
-            </LayoutView>
-        </NotFound>
-    </Router>
-</AppState>
+﻿<ErrorBoundary @ref="errorBoundary">
+    <ChildContent>
+        <AppState>
+            <Router AppAssembly="@typeof(App).Assembly">
+                <Found Context="routeData">
+                    <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+                    <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+                </Found>
+                <NotFound>
+                    <LayoutView Layout="@typeof(MainLayout)">
+                        <p role="alert">Sorry, there's nothing at this address.</p>
+                    </LayoutView>
+                </NotFound>
+            </Router>
+        </AppState>
+    </ChildContent>
+    <ErrorContent Context="ex">
+        <LayoutView Layout="@typeof(MainLayout)">
+            <div class="container mt-3">
+                <div class="alert alert-danger" role="alert">
+                    <h3 class="h5 mb-2">Unhandled application error</h3>
+                    <p class="mb-2">@ex.Message</p>
+                    <details>
+                        <summary>Details</summary>
+                        <pre class="mt-2" style="white-space: pre-wrap">@ex.ToString()</pre>
+                    </details>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-secondary" @onclick="Recover">Try to recover</button>
+                    </div>
+                </div>
+            </div>
+        </LayoutView>
+    </ErrorContent>
+</ErrorBoundary>
+
+@code {
+    private ErrorBoundary? errorBoundary;
+
+    private void Recover()
+    {
+        errorBoundary?.Recover();
+    }
+}
