@@ -13,6 +13,17 @@
 
     <PageHeader Title="@pageTitle" BackToURL="@backToUrl"/>
 
+    @if (!string.IsNullOrWhiteSpace(LoadError))
+    {
+        <div class="alert alert-danger" role="alert">
+            <strong>Unable to load documents.</strong>
+            <div class="small mt-2">@LoadError</div>
+        </div>
+        <SfButton CssClass="btn btn-link" OnClick="@GoHome">Go Home</SfButton>
+    }
+    else
+    {
+
     @if (ShowAdd)
     {
         <div class="row">
@@ -22,8 +33,8 @@
         </div>
     }
 
-    <div class="row">
-        <SfGrid DataSource="@docList" AllowPaging="true">
+        <div class="row">
+            <SfGrid DataSource="@docList" AllowPaging="true">
             <GridPageSettings PageSize="10"></GridPageSettings>
             <GridColumns>
                 <GridColumn Field=@nameof(Datasheet.Id) HeaderText="ID" Visible="false" Width="120"></GridColumn>
@@ -32,8 +43,11 @@
                 <GridColumn HeaderText="Status" Width="100">
                     <Template Context="docContext">
                         @{
-                            Datasheet doc = (docContext as Datasheet);
-                            <p>@Utils.GetStatusText(doc.Status)</p>
+                            var doc = docContext as Datasheet;
+                            if (doc is not null)
+                            {
+                                <p>@Utils.GetStatusText(doc.Status)</p>
+                            }
                         }
                     </Template>
                 </GridColumn>
@@ -42,21 +56,25 @@
                 <GridColumn HeaderText="Actions" TextAlign="TextAlign.Center" Width="150">
                     <Template Context="docContext">
                         @{
-                            Datasheet doc = (docContext as Datasheet);
-                            <div class="row">
-                                <div class="col-4">
-                                    <SfButton CssClass="e-link" OnClick="@(() => EditDoc(doc.Id))">Details</SfButton>
+                            var doc = docContext as Datasheet;
+                            if (doc is not null)
+                            {
+                                <div class="row">
+                                    <div class="col-4">
+                                        <SfButton CssClass="e-link" OnClick="@(() => EditDoc(doc.Id))">Details</SfButton>
+                                    </div>
+                                    <div class="col-4">
+                                        <SfButton CssClass="e-link" OnClick="@(() => EditSections(doc.Id))">Edit Sections</SfButton>
+                                    </div>
                                 </div>
-                                <div class="col-4">
-                                    <SfButton CssClass="e-link" OnClick="@(() => EditSections(doc.Id))">Edit Sections</SfButton>
-                                </div>
-                            </div>
+                            }
                         }
                     </Template>
                 </GridColumn>
             </GridColumns>
-        </SfGrid>
-    </div>
+            </SfGrid>
+        </div>
+    }
 </div>
 
 @if(ShowSpinner)
@@ -73,51 +91,100 @@
     string pageTitle = string.Empty;
     bool ShowAdd;
     bool ShowSpinner;
+    string? LoadError;
     string backToUrl;
     string sectionSuffix;
 
     protected override async Task OnInitializedAsync()
     {
-        dMgr = new(api);
-
         ShowSpinner = true;
+        LoadError = null;
 
-        if (nav.Uri.Contains("ListDocumentsInSet"))
-        {       
-            backToUrl = "/Documents/ListDocumentSets";
-            sectionSuffix = "ListDocumentsInSet";
+        try
+        {
+            dMgr = new(api);
 
-            foreach (var item in AppState.ActiveDatasheetFeed.DatasheetItems)
+            // Guard: navigating directly (or refreshing) on this page means Index.razor may not have populated AppState yet.
+            if (AppState?.User is null || AppState.User.OrganizationId == Guid.Empty)
             {
-                docList.Add(item.Datasheet);
+                LoadError = "No user context is loaded yet. Navigate to Home first so the app can initialize (or ensure the DB contains the default user/org).";
+                return;
             }
 
-            pageTitle = $"Documents for my organization in Document set {AppState.ActiveDatasheetFeed.Name}";
-            ShowAdd = true;
+            if (nav.Uri.Contains("ListDocumentsInSet"))
+            {
+                backToUrl = "/Documents/ListDocumentSets";
+                sectionSuffix = "ListDocumentsInSet";
+
+                if (AppState.ActiveDatasheetFeed is null)
+                {
+                    LoadError = "No active Document Set is selected. Open a Document Set first, then view linked Datasheets.";
+                    return;
+                }
+
+                foreach (var item in AppState.ActiveDatasheetFeed.DatasheetItems ?? new())
+                {
+                    if (item?.Datasheet is not null)
+                    {
+                        docList.Add(item.Datasheet);
+                    }
+                }
+
+                pageTitle = $"Documents for my organization in Document set {AppState.ActiveDatasheetFeed.Name}";
+                ShowAdd = true;
+            }
+            else
+            {
+                backToUrl = "/";
+                sectionSuffix = "ListDocuments";
+                docList = await dMgr.GetDatasheetListForOrganizationAsync(AppState.User.OrganizationId);
+                pageTitle = "Datasheets for my organization";
+                ShowAdd = false;
+            }
+
+            AppState.StatusBarMessage = $"total Datasheets available: {docList.Count}";
         }
-        else
+        catch (Exception ex)
         {
-            backToUrl = "/";
-            sectionSuffix = "ListDocuments";
-            docList = await dMgr.GetDatasheetListForOrganizationAsync(AppState.User.OrganizationId);
-            pageTitle = "Datasheets for my organization";
-            ShowAdd = false;
+            LoadError = ex.Message;
+            AppState.StatusBarMessage = "failed to load Datasheets";
+            Console.Error.WriteLine(ex);
         }
-
-        AppState.StatusBarMessage = $"total Datasheets available: {docList.Count}";
-
-        ShowSpinner = false;
+        finally
+        {
+            ShowSpinner = false;
+        }
     }
 
     private void EditDoc(Guid docId)
     {
-        AppState.ActiveDatasheet = docList.FirstOrDefault(d => d.Id == docId);       
+        AppState.ActiveDatasheet = docList.FirstOrDefault(d => d.Id == docId);
+
+        if (AppState.ActiveDatasheet is null)
+        {
+            AppState.StatusBarMessage = "Unable to open Datasheet details (not found in list).";
+            return;
+        }
+
         nav.NavigateTo("/Documents/EditDocument/false");
     }
 
     private void EditSections(Guid docId)
     {
-        AppState.ActiveDatasheet = docList.FirstOrDefault(d => d.Id == docId);     
+        AppState.ActiveDatasheet = docList.FirstOrDefault(d => d.Id == docId);
+
+        if (AppState.ActiveDatasheet is null)
+        {
+            AppState.StatusBarMessage = "Unable to edit sections (Datasheet not found in list).";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(AppState.ActiveDatasheet.DatasheetString))
+        {
+            AppState.StatusBarMessage = "Unable to edit sections (Datasheet XML is empty).";
+            return;
+        }
+
         AppState.ActiveDatasheet.DatasheetXDoc = new();
         AppState.ActiveDatasheet.DatasheetXDoc.LoadXml(AppState.ActiveDatasheet.DatasheetString); 
         
@@ -129,5 +196,10 @@
     private void AddDatasheetToSet()
     {       
         nav.NavigateTo($"/Documents/EditDocument/true");
+    }
+
+    private void GoHome()
+    {
+        nav.NavigateTo("/");
     }
 }

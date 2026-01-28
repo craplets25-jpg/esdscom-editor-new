@@ -10,42 +10,61 @@
 
     <PageHeader Title="Document sets for my organization" />
 
-    <div class="row">
-        <div class="col">
-            <SfButton CssClass="btn btn-primary" OnClick="@AddDocSet">Add new Document set</SfButton>
+    @if (!string.IsNullOrWhiteSpace(LoadError))
+    {
+        <div class="alert alert-danger" role="alert">
+            <strong>Unable to load document sets.</strong>
+            <div class="small mt-2">@LoadError</div>
         </div>
-    </div>
+        <SfButton CssClass="btn btn-link" OnClick="@GoHome">Go Home</SfButton>
+    }
+    else
+    {
 
-    <div class="row">
-        <SfGrid DataSource="@docSetList" AllowPaging="true">
-            <GridPageSettings PageSize="10"></GridPageSettings>
-            <GridColumns>
-                <GridColumn Field=@nameof(DatasheetFeed.Id) HeaderText="ID" Visible="false"></GridColumn>
-                <GridColumn Field=@nameof(DatasheetFeed.Name) HeaderText="Name" Width="250"></GridColumn>
-                <GridColumn HeaderText="Status" Width="50" TextAlign="TextAlign.Center">
-                    <Template Context="docContext">
-                        @{
-                            DatasheetFeed docSet = (docContext as DatasheetFeed);
-                            <p> @Utils.GetStatusText(docSet.Status) </p>
-                        }
-                    </Template>
-                </GridColumn>
-                <GridColumn Field=@nameof(DatasheetFeed.DatasheetCount) HeaderText="Links" Width="50" TextAlign="TextAlign.Center"></GridColumn>
-                <GridColumn Field=@nameof(DatasheetFeed.CreatedDate) HeaderText="Created Date" Width="75" TextAlign="TextAlign.Center"></GridColumn>
-                <GridColumn Field=@nameof(DatasheetFeed.UpdatedDate) HeaderText="Updated Date" Width="75" TextAlign="TextAlign.Center"></GridColumn>
-                <GridColumn Field=@nameof(DatasheetFeed.UserName) HeaderText="Updated By" Width="100" TextAlign="TextAlign.Center"></GridColumn>
-                <GridColumn HeaderText="Actions" TextAlign="TextAlign.Center" Width="200">
-                    <Template Context="docSetContext">
-                        @{
-                            DatasheetFeed docSet = (docSetContext as DatasheetFeed);
-                            <SfButton CssClass="e-link" OnClick="@(async () => await ViewDocSet(docSet.Id))">Edit</SfButton>
-                            <SfButton CssClass="e-link" OnClick="@(async () => await ViewLinks(docSet.Id))">Linked Datasheets</SfButton>
-                        }
-                    </Template>
-                </GridColumn>
-            </GridColumns>
-        </SfGrid>
-    </div>
+        <div class="row">
+            <div class="col">
+                <SfButton CssClass="btn btn-primary" OnClick="@AddDocSet">Add new Document set</SfButton>
+            </div>
+        </div>
+
+        <div class="row">
+            <SfGrid DataSource="@docSetList" AllowPaging="true">
+                <GridPageSettings PageSize="10"></GridPageSettings>
+                <GridColumns>
+                    <GridColumn Field=@nameof(DatasheetFeed.Id) HeaderText="ID" Visible="false"></GridColumn>
+                    <GridColumn Field=@nameof(DatasheetFeed.Name) HeaderText="Name" Width="250"></GridColumn>
+                    <GridColumn HeaderText="Status" Width="50" TextAlign="TextAlign.Center">
+                        <Template Context="docContext">
+                            @{
+                                var docSet = docContext as DatasheetFeed;
+                                if (docSet is not null)
+                                {
+                                    <p> @Utils.GetStatusText(docSet.Status) </p>
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn Field=@nameof(DatasheetFeed.DatasheetCount) HeaderText="Links" Width="50" TextAlign="TextAlign.Center"></GridColumn>
+                    <GridColumn Field=@nameof(DatasheetFeed.CreatedDate) HeaderText="Created Date" Width="75" TextAlign="TextAlign.Center"></GridColumn>
+                    <GridColumn Field=@nameof(DatasheetFeed.UpdatedDate) HeaderText="Updated Date" Width="75" TextAlign="TextAlign.Center"></GridColumn>
+                    <GridColumn Field=@nameof(DatasheetFeed.UserName) HeaderText="Updated By" Width="100" TextAlign="TextAlign.Center"></GridColumn>
+                    <GridColumn HeaderText="Actions" TextAlign="TextAlign.Center" Width="200">
+                        <Template Context="docSetContext">
+                            @{
+                                var docSet = docSetContext as DatasheetFeed;
+                                if (docSet is not null)
+                                {
+                                    <SfButton CssClass="e-link" OnClick="@(async () => await ViewDocSet(docSet.Id))">Edit</SfButton>
+                                    <SfButton CssClass="e-link" OnClick="@(async () => await ViewLinks(docSet.Id))">Linked Datasheets</SfButton>
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
+        </div>
+
+    }
 </div>
 
 @if(ShowSpinner)
@@ -60,19 +79,37 @@
     List<DatasheetFeed> docSetList = new();
     AppDataService dMgr;
     bool ShowSpinner;
+    string? LoadError;
 
 
     protected override async Task OnInitializedAsync()
     {
         ShowSpinner = true;
+        LoadError = null;
 
-        dMgr = new(api);
+        try
+        {
+            dMgr = new(api);
 
-        docSetList = await dMgr.GetDatasheetFeedListForOrganizationAsync(AppState.User.OrganizationId);
+            if (AppState?.User is null || AppState.User.OrganizationId == Guid.Empty)
+            {
+                LoadError = "No user context is loaded yet. Navigate to Home first so the app can initialize.";
+                return;
+            }
 
-        ShowSpinner = false;
-        
-        AppState.StatusBarMessage = $"total Document sets available: {docSetList.Count}";
+            docSetList = await dMgr.GetDatasheetFeedListForOrganizationAsync(AppState.User.OrganizationId);
+            AppState.StatusBarMessage = $"total Document sets available: {docSetList.Count}";
+        }
+        catch (Exception ex)
+        {
+            LoadError = ex.Message;
+            AppState.StatusBarMessage = "failed to load Document sets";
+            Console.Error.WriteLine(ex);
+        }
+        finally
+        {
+            ShowSpinner = false;
+        }
     }
 
     private void AddDocSet()
@@ -82,12 +119,24 @@
 
     private async Task ViewDocSet(Guid dsSetId)
     {
+        if (AppState?.User is null || AppState.User.OrganizationId == Guid.Empty)
+        {
+            LoadError = "No user context is loaded yet. Navigate to Home first so the app can initialize.";
+            return;
+        }
+
         AppState.ActiveDatasheetFeed = await dMgr.GetDatasheetFeedAsync(AppState.User.OrganizationId, dsSetId);
         nav.NavigateTo($"/Documents/EditDocumentSet/false");
     }
 
     private async Task ViewLinks(Guid dsSetId)
     {
+        if (AppState?.User is null || AppState.User.OrganizationId == Guid.Empty)
+        {
+            LoadError = "No user context is loaded yet. Navigate to Home first so the app can initialize.";
+            return;
+        }
+
         AppState.ActiveDatasheetFeed = await dMgr.GetDatasheetFeedAsync(AppState.User.OrganizationId, dsSetId);
         nav.NavigateTo($"/Documents/ListDocumentsInSet");
     }
@@ -95,5 +144,10 @@
     private void CopyDocSet(Guid dsSetId)
     {        
         nav.NavigateTo($"/Documents/DocumentSetCopy");
+    }
+
+    private void GoHome()
+    {
+        nav.NavigateTo("/");
     }
 }

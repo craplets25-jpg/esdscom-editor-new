@@ -63,14 +63,48 @@ public class DatasheetFeedController : Controller
     [Route("Add")]
     public async Task<ActionResult<DatasheetFeed>> Add(DatasheetFeed dsFeed)
     {
-        return await dsfBkr.Add(dsFeed);
+        try
+        {
+            var created = await dsfBkr.Add(dsFeed);
+            if (created is null)
+            {
+                return Problem(
+                    title: "Failed to add datasheet feed",
+                    detail: "Insert did not affect any rows.");
+            }
+
+            return created;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Failed to add DatasheetFeed");
+            return Problem(
+                title: "Failed to add datasheet feed",
+                detail: ex.Message);
+        }
     }
 
     [HttpPut]
     [Route("Update")]
     public async Task<ActionResult<DatasheetFeed>> Update(DatasheetFeed dsFeed)
     {
-        return await dsfBkr.Update(dsFeed);
+        try
+        {
+            var updated = await dsfBkr.Update(dsFeed);
+            if (updated is null)
+            {
+                return NotFound();
+            }
+
+            return updated;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Failed to update DatasheetFeed");
+            return Problem(
+                title: "Failed to update datasheet feed",
+                detail: ex.Message);
+        }
     }
 
     [HttpDelete]

@@ -13,6 +13,26 @@ public class AppDataService
         api = _api;
     }
 
+    private static async Task<T> ReadJsonOrThrowAsync<T>(HttpResponseMessage response)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            string body = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException(
+                $"API request failed: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}",
+                inner: null,
+                statusCode: response.StatusCode);
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<T>();
+        if (result is null)
+        {
+            throw new System.Text.Json.JsonException("Response body was empty or invalid JSON.");
+        }
+
+        return result;
+    }
+
 
     #region Users
 
@@ -23,7 +43,7 @@ public class AppDataService
         try
         {
             HttpResponseMessage response = await api.PostAsJsonAsync("user/add", user);
-            newUser = await response.Content.ReadFromJsonAsync<User>();
+            newUser = await ReadJsonOrThrowAsync<User>(response);
         }
         catch (Exception ex)
         {
@@ -40,7 +60,7 @@ public class AppDataService
         try
         {
             HttpResponseMessage response = await api.PutAsJsonAsync("user/update", user);
-            newUser = await response.Content.ReadFromJsonAsync<User>();
+            newUser = await ReadJsonOrThrowAsync<User>(response);
         }
         catch (Exception ex)
         {
@@ -73,7 +93,7 @@ public class AppDataService
         organization.InfoExSysXDoc = null;
 
         HttpResponseMessage response = await api.PostAsJsonAsync("organization/add", organization);
-        organization = await response.Content.ReadFromJsonAsync<Organization>();
+        organization = await ReadJsonOrThrowAsync<Organization>(response);
 
         organization.InfoExSysXDoc = new();
         organization.InfoExSysXDoc.LoadXml(organization.InfoExSysString);
@@ -87,7 +107,7 @@ public class AppDataService
         organization.InfoExSysXDoc = null;
 
         HttpResponseMessage response = await api.PutAsJsonAsync("organization/update", organization);
-        organization =  await response.Content.ReadFromJsonAsync<Organization>();
+        organization = await ReadJsonOrThrowAsync<Organization>(response);
 
         organization.InfoExSysXDoc = new();
         organization.InfoExSysXDoc.LoadXml(organization.InfoExSysString);
@@ -109,7 +129,7 @@ public class AppDataService
     public async Task<Datasheet> AddDatasheetAsync(Datasheet datasheet)
     {
         HttpResponseMessage response = await api.PostAsJsonAsync("datasheet/add", datasheet);
-        Datasheet ds = await response.Content.ReadFromJsonAsync<Datasheet>();
+        Datasheet ds = await ReadJsonOrThrowAsync<Datasheet>(response);
         return ds;
     }
 
@@ -119,7 +139,7 @@ public class AppDataService
         datasheet.DatasheetXDoc = null;
 
         HttpResponseMessage response = await api.PutAsJsonAsync("datasheet/update", datasheet);
-        Datasheet ds = await response.Content.ReadFromJsonAsync<Datasheet>();
+        Datasheet ds = await ReadJsonOrThrowAsync<Datasheet>(response);
 
         ds.DatasheetXDoc = new();
         ds.DatasheetXDoc.LoadXml(ds.DatasheetString);
@@ -182,19 +202,19 @@ public class AppDataService
     public async Task<DatasheetFeed> AddDatasheetFeedAsync(DatasheetFeed datasheetFeed)
     {
         HttpResponseMessage response = await api.PostAsJsonAsync("datasheetfeed/add", datasheetFeed);
-        return await response.Content.ReadFromJsonAsync<DatasheetFeed>();
+        return await ReadJsonOrThrowAsync<DatasheetFeed>(response);
     }
 
     public async Task<DatasheetFeed> UpdateDatasheetFeedAsync(DatasheetFeed datasheetFeed)
     {
         HttpResponseMessage response = await api.PutAsJsonAsync("datasheetfeed/update", datasheetFeed);
-        return await response.Content.ReadFromJsonAsync<DatasheetFeed>();
+        return await ReadJsonOrThrowAsync<DatasheetFeed>(response);
     }
 
     public async Task<DatasheetFeedItem> AddDatasheetFeedItemAsync(DatasheetFeedItem dsfi)
     {
         HttpResponseMessage response = await api.PostAsJsonAsync("datasheetfeeditem/add", dsfi);
-        return await response.Content.ReadFromJsonAsync<DatasheetFeedItem>();
+        return await ReadJsonOrThrowAsync<DatasheetFeedItem>(response);
     }
 
     public async Task<DatasheetFeed> GetDatasheetFeedAsync(Guid organizationId, Guid datsheetFeedId)
@@ -217,9 +237,20 @@ public class AppDataService
         return await api.GetFromJsonAsync<List<Substance>>($"substance/getall");
     }
 
+    /// <summary>
+    /// Fetch by database primary key (Substance.Id).
+    /// </summary>
     public async Task<Substance> GetSubstanceAsync(Guid substanceId)
     {
-        return await api.GetFromJsonAsync<Substance>($"substance/getbyguid?substanceId={substanceId}");
+        return await api.GetFromJsonAsync<Substance>($"substance/get?id={substanceId}");
+    }
+
+    /// <summary>
+    /// Fetch by ECHA SubstanceId (Substance.SubstanceId).
+    /// </summary>
+    public async Task<Substance> GetSubstanceBySubstanceIdAsync(string substanceId)
+    {
+        return await api.GetFromJsonAsync<Substance>($"substance/getbysubstanceid?substanceId={Uri.EscapeDataString(substanceId)}");
     }
 
     #endregion

@@ -22,9 +22,12 @@ public class SubstanceController : Controller
         return Ok(subs);
     }
 
+    // NOTE: Despite the legacy name "GetByGuid", this endpoint looks up by the ECHA SubstanceId (string)
+    // stored in Substance.SubstanceId, NOT by the database Guid (Substance.Id).
     [HttpGet]
+    [Route("GetBySubstanceId")]
     [Route("GetByGuid")]
-    public async Task<ActionResult<Substance>> GetByGuid(string substanceId)
+    public async Task<ActionResult<Substance>> GetBySubstanceId([FromQuery] string substanceId)
     {
         Substance subs = await sBkr.GetById(substanceId);
         return Ok(subs);
@@ -40,7 +43,7 @@ public class SubstanceController : Controller
     }
 
     [HttpGet]
-    [Route("GetByGuid")]
+    [Route("GetByCASNumber")]
     public async Task<ActionResult<Substance>> GetByCASNumber(string casNumber)
     {
         Substance subs = await sBkr.GetByCASNumber(casNumber);

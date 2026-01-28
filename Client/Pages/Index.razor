@@ -9,6 +9,14 @@
     {
         <Spinner/>
     }
+    else if (!string.IsNullOrWhiteSpace(StartupError))
+    {
+        <div class="alert alert-danger" role="alert">
+            <strong>Startup failed.</strong>
+            <div class="small mt-2">@StartupError</div>
+        </div>
+        <button type="button" class="btn btn-link" @onclick="GoAbout">About</button>
+    }
     else
     {
         <CardSet CardItemList="itemList" />
@@ -23,6 +31,7 @@
     [CascadingParameter] public AppState AppState { get; set; }
 
     bool IsLoading = true;
+    string? StartupError;
     List<CardItem> itemList = new();
     AppDataService dMgr;
 
@@ -30,21 +39,23 @@
     {  
         await base.OnInitializedAsync();
 
-        dMgr = new(api);
-
-        //this includes the XML for the datasheetFeed, Info Exp sys and a list of datasheet
-        if (AppState.DocumentSetXml is null)
+        try
         {
-            AppState.DocumentSetXml = Utils.GetDocumentSetXml();
-        }
+            dMgr = new(api);
 
-        AppState.ESDSphracCatalogueName = "eSDSphrac";
-        AppState.ESDSphracPhraseCatalogueId = "1";
-        AppState.ESDSPhraCVersion = "5.0";
-        AppState.ESDSXmlVersion = "5.4.1";
+            //this includes the XML for the datasheetFeed, Info Exp sys and a list of datasheet
+            if (AppState.DocumentSetXml is null)
+            {
+                AppState.DocumentSetXml = Utils.GetDocumentSetXml();
+            }
 
-        Guid userGuid = Guid.Parse("35984ABA-E95C-4591-82FF-0E38A2D1FECD");
-        Guid orgGuid = Guid.Parse("60D03E92-ED1E-47A6-83BF-8D56ED3561AF");
+            AppState.ESDSphracCatalogueName = "eSDSphrac";
+            AppState.ESDSphracPhraseCatalogueId = "1";
+            AppState.ESDSPhraCVersion = "5.0";
+            AppState.ESDSXmlVersion = "5.4.1";
+
+            Guid userGuid = Guid.Parse("35984ABA-E95C-4591-82FF-0E38A2D1FECD");
+            Guid orgGuid = Guid.Parse("60D03E92-ED1E-47A6-83BF-8D56ED3561AF");
 
         //var newUser = new User()
         //    {
@@ -58,7 +69,12 @@
 
         //await dMgr.AddUserAsync(newUser);
 
-        AppState.User = await dMgr.GetUserAsync(userGuid);
+            AppState.User = await dMgr.GetUserAsync(userGuid);
+
+            if (AppState.User is null || AppState.User.Id == Guid.Empty)
+            {
+                throw new InvalidOperationException($"Default user {userGuid} was not found. Ensure the database is seeded and the Server is using the correct connection string.");
+            }
 
         //-------------------------------------------------------------------------------------------
         // create a new organization
@@ -78,12 +94,24 @@
 
         //-----------------------------------------------------------------------------------------------
 
-        if (AppState.Organization is null)
-        {
-            AppState.Organization = await dMgr.GetOrganizationAsync(orgGuid);
-            AppState.Organization.InfoExSysXDoc = new();
-            AppState.Organization.InfoExSysXDoc.LoadXml(AppState.Organization.InfoExSysString);
-        }
+            if (AppState.Organization is null)
+            {
+                AppState.Organization = await dMgr.GetOrganizationAsync(orgGuid);
+
+                if (AppState.Organization is null || AppState.Organization.Id == Guid.Empty)
+                {
+                    throw new InvalidOperationException($"Default organization {orgGuid} was not found. Ensure the database is seeded and the Server is using the correct connection string.");
+                }
+
+                AppState.Organization.InfoExSysXDoc = new();
+                var infoXml = AppState.Organization.InfoExSysString;
+                if (string.IsNullOrWhiteSpace(infoXml))
+                {
+                    // Avoid hard-failing the entire UI when the org record has no XML payload yet.
+                    infoXml = "<InformationFromExportingSystem />";
+                }
+                AppState.Organization.InfoExSysXDoc.LoadXml(infoXml);
+            }
 
         //if (AppState.ActiveDatasheet is null)
         //{
@@ -96,31 +124,40 @@
         //xDoc.LoadXml(AppState.Organization.XmlData);
         //AppState.Organization.InformationFromExportingSystem = xDoc.DocumentElement;
 
-        BuildCardItems();
+            BuildCardItems();
 
-        if (AppState.SchemaElements is null)
-        {
-            AppState.SchemaElements = Utils.GetSchemaElements();
+            if (AppState.SchemaElements is null)
+            {
+                AppState.SchemaElements = Utils.GetSchemaElements();
+            }
+
+            if (AppState.EnumItems is null)
+            {
+                AppState.EnumItems = Utils.GetSchemaEnums();
+            }
+
+            if (AppState.Regions is null)
+            {
+                AppState.Regions = Utils.GetRegions();
+            }
+
+            if (AppState.Phrases is null)
+            {
+                AppState.Phrases = Utils.GetPhrases();
+            }
+
+            AppState.StatusBarMessage = "editing tool is ready for use.";
         }
-
-        if (AppState.EnumItems is null)
+        catch (Exception ex)
         {
-            AppState.EnumItems = Utils.GetSchemaEnums();
+            StartupError = ex.Message;
+            AppState.StatusBarMessage = "startup failed - check API/DB connection";
+            Console.Error.WriteLine(ex);
         }
-
-        if (AppState.Regions is null)
+        finally
         {
-            AppState.Regions = Utils.GetRegions();
+            IsLoading = false;
         }
-
-        if (AppState.Phrases is null)
-        {
-            AppState.Phrases = Utils.GetPhrases();
-        }
-
-        IsLoading = false;
-
-        AppState.StatusBarMessage = "editing tool is ready for use.";
     }
 
     private List<CardItem> BuildCardItems()
@@ -214,5 +251,4 @@
     {
         nav.NavigateTo("/AppInfo");
     }
-
-        }
+}
