@@ -64,30 +64,66 @@
 
         dMgr = new(api);
 
+        // If AppState or user data isn't available yet (startup/race), defer initialization.
+        appUser = AppState?.User;
+        if (AppState?.User is null)
+        {
+            title = IsNew ? "Add a Document Set" : "Edit Document set";
+            backToURL = IsNew ? "/" : "/Documents/ListDocumentSets";
+            if (AppState is not null)
+            {
+                AppState.StatusBarMessage = "loading...";
+            }
+            return;
+        }
+
+        InitializeFromState();
+    }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        // If AppState becomes available after first render, finish initialization.
+        if (appUser is null && AppState?.User is not null)
+        {
+            appUser = AppState.User;
+            InitializeFromState();
+            StateHasChanged();
+        }
+    }
+
+    private void InitializeFromState()
+    {
         appUser = AppState.User;
 
         if (IsNew)
         {
             title = "Add a Document Set";
             backToURL = "/";
-            //TODO:  Populate default Info section
+            // Populate default Info section safely
             datasheetFeed = new()
-                {
-                    Id = Guid.NewGuid(),
-                    OrganizationId = appUser.OrganizationId,
-                    UserId = appUser.Id,
-                    UserName = appUser.Email,
-                    Status = 1,
-                    DatasheetFeedString = "<DatasheetFeed/>"
-                };
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = appUser?.OrganizationId ?? Guid.Empty,
+                UserId = appUser?.Id ?? Guid.Empty,
+                UserName = appUser?.Email ?? string.Empty,
+                Status = 1,
+                DatasheetFeedString = "<DatasheetFeed/>"
+            };
         }
         else
         {
-            datasheetFeed = AppState.ActiveDatasheetFeed; 
-            title = $"Edit Document set {datasheetFeed.Name}";
-            AppState.StatusBarMessage = "viewing/editing";
+            datasheetFeed = AppState.ActiveDatasheetFeed ?? new();
+            title = $"Edit Document set {datasheetFeed?.Name}";
+            if (AppState is not null)
+            {
+                AppState.StatusBarMessage = "viewing/editing";
+            }
             backToURL = "/Documents/ListDocumentSets";
-        }  
+        }
+
+        editContext = new EditContext(datasheetFeed);
     } 
 
     private void StatusSelectionHandler(int status)
@@ -97,11 +133,21 @@
 
     private XmlNode GetDefaultInfoSection()
     {
+        if (AppState?.DocumentSetXml is null)
+        {
+            return null;
+        }
+
         XmlDocument xDoc = AppState.DocumentSetXml;
 
-        XmlNode infoNode = xDoc.DocumentElement.SelectSingleNode("InformationFromExportingSystem");
+        XmlNode infoNode = xDoc.DocumentElement?.SelectSingleNode("InformationFromExportingSystem");
 
-        if (AppState.Organization.InfoExSysString is not null)
+        if (infoNode is null)
+        {
+            return null;
+        }
+
+        if (AppState.Organization?.InfoExSysString is not null)
         {
             infoNode.InnerXml = AppState.Organization.InfoExSysString;
         }

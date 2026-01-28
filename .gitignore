@@ -5,6 +5,9 @@
 
 local.settings.json
 
+# Local-only Blazor WASM config (e.g., Syncfusion license key). Never commit.
+Client/wwwroot/appsettings.local.json
+
 
 # User-specific files
 *.rsuser
@@ -355,6 +358,10 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+
+# Local FixXml inputs (downloaded from ECHA/EUPHRAC)
+FixXml/Data/substances.xml
+FixXml/Data/phrases.xml
 
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/
