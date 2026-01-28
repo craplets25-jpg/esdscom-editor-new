@@ -48,6 +48,25 @@ public class DatasheetFeedBrokerTests : BaseTestData
     }
 
     [Fact]
+    public async Task AddDatasheetFeed_AllowsNullOptionalStrings()
+    {
+        var dsfGuid = Guid.NewGuid();
+        var orgGuid = Guid.NewGuid();
+        var userGuid = Guid.NewGuid();
+
+        DatasheetFeed dsf = GetTestDatasheetFeed(dsfGuid, orgGuid, userGuid);
+        dsf.Comments = null!;
+        dsf.DatasheetFeedString = null!;
+
+        var newDSF = await dsfBkr.Add(dsf);
+        Assert.NotNull(newDSF);
+        Assert.Equal(dsfGuid, newDSF.Id);
+
+        bool deletedOk = await dsfBkr.Delete(dsfGuid);
+        Assert.True(deletedOk);
+    }
+
+    [Fact]
     public async Task UpdateDatasheetFeed()
     {
         var dsfGuid = Guid.NewGuid();

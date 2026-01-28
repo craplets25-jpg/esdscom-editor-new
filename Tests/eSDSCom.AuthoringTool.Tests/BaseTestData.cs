@@ -7,7 +7,24 @@ public class BaseTestData : IClassFixture<DatabaseFixture>
 
     static BaseTestData()
     {
-        if (string.IsNullOrEmpty(TestConnectionString))
+        // Prefer an explicit test connection string so tests can run locally/CI without Azure connectivity.
+        // Recommended: point this to a disposable Postgres instance (e.g., Neon) seeded with expected data.
+        string? envConnString =
+            Environment.GetEnvironmentVariable("ESDSCOM_TEST_CONNECTION_STRING") ??
+            Environment.GetEnvironmentVariable("TEST_CONNECTION_STRING");
+
+        if (!string.IsNullOrWhiteSpace(envConnString))
+        {
+            // IMPORTANT: Keep tests isolated from any developer DB that may already contain imported ECHA data.
+            // Npgsql supports `Search Path`, which controls the Postgres schema resolution order.
+            // By forcing a dedicated schema for tests, broker queries like `SELECT * FROM SUBSTANCES`
+            // will hit our seeded tables instead of existing production-like data.
+            TestConnectionString = EnsureTestSchemaSearchPath(envConnString, schema: "esdscom_tests");
+            return;
+        }
+
+        // Fallback: Azure Key Vault (matches upstream repo behavior).
+        try
         {
             SecretClientOptions options = new()
             {
@@ -22,6 +39,14 @@ public class BaseTestData : IClassFixture<DatabaseFixture>
             var client = new SecretClient(new Uri("https://esdscomeditorkeyvault.vault.azure.net/"), new DefaultAzureCredential(), options);
             KeyVaultSecret secret = client.GetSecret("ConnectionString");
             TestConnectionString = secret.Value;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                "Failed to resolve a database connection string for integration tests. " +
+                "Set ESDSCOM_TEST_CONNECTION_STRING (or TEST_CONNECTION_STRING) to a PostgreSQL connection string, " +
+                "or ensure Azure Key Vault access to https://esdscomeditorkeyvault.vault.azure.net/ with secret name 'ConnectionString'.",
+                ex);
         }
 
     }
@@ -127,6 +152,19 @@ public class BaseTestData : IClassFixture<DatabaseFixture>
             LastUpdated = "07-07-2015",
             FactsheetURL = "https://echa.europa.eu/registration-dossier/-/registered-dossier/6200"
         };
+    }
+
+    private static string EnsureTestSchemaSearchPath(string connectionString, string schema)
+    {
+        // If the caller already supplied a Search Path, respect it.
+        // (Simple contains check is fine here; this is just for test configuration.)
+        if (connectionString.Contains("Search Path=", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("SearchPath=", StringComparison.OrdinalIgnoreCase))
+        {
+            return connectionString;
+        }
+
+        return connectionString.TrimEnd().TrimEnd(';') + $";Search Path={schema}";
     }
 }
 

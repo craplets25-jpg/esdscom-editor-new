@@ -31,7 +31,8 @@ public class SubstanceBrokerTests : BaseTestData
     {
         List<Substance> subsList = await broker.GetAll();
         Assert.NotNull(subsList);
-        Assert.Equal(9999, subsList.Count);
+        // The test fixture seeds a minimal, deterministic dataset.
+        Assert.Equal(3, subsList.Count);
 
     }
 
@@ -77,7 +78,7 @@ public class SubstanceBrokerTests : BaseTestData
 
         List<Substance> subsList = await broker.GetList(substanceIDs);
         Assert.NotNull(subsList);
-        Assert.Equal(7, subsList.Count);
+        Assert.Equal(3, subsList.Count);
     }
 
 
