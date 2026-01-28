@@ -1,5 +1,7 @@
 ﻿namespace eSDSCom.Editor.Server.Brokers;
 
+using NpgsqlTypes;
+
 public interface IDatasheetFeedBroker
 {
     Task<DatasheetFeed> Get(Guid organizationId, Guid dsfId);
@@ -13,6 +15,15 @@ public interface IDatasheetFeedBroker
 public class DatasheetFeedBroker :  IDatasheetFeedBroker
 {
     private static string ConnectionString;
+
+    private static NpgsqlParameter CreateParam(object? value, NpgsqlDbType dbType)
+    {
+        return new NpgsqlParameter
+        {
+            NpgsqlDbType = dbType,
+            Value = value ?? DBNull.Value
+        };
+    }
 
     public DatasheetFeedBroker(string connString) 
     {
@@ -157,19 +168,16 @@ public class DatasheetFeedBroker :  IDatasheetFeedBroker
                             VALUES
                                 ($1, $2, $3, $4, $5, $6, $7) ";
 
-            using NpgsqlCommand cmd = new(sql, dbConn)
-            {
-                Parameters =
-                {
-                    new() { Value = dsf.Id },
-                    new() { Value = dsf.OrganizationId },
-                    new() { Value = dsf.UserId },
-                    new() { Value = dsf.Name },
-                    new() { Value = dsf.DatasheetFeedString },
-                    new() { Value = dsf.Comments },
-                    new() { Value = dsf.Status }
-                }
-            };
+            using NpgsqlCommand cmd = new(sql, dbConn);
+            // For positional placeholders ($1, $2, ...), Npgsql binds parameters by order.
+            // Keep parameters unnamed and add them in the same order as the placeholders.
+            cmd.Parameters.Add(CreateParam(dsf.Id, NpgsqlDbType.Uuid));
+            cmd.Parameters.Add(CreateParam(dsf.OrganizationId, NpgsqlDbType.Uuid));
+            cmd.Parameters.Add(CreateParam(dsf.UserId, NpgsqlDbType.Uuid));
+            cmd.Parameters.Add(CreateParam(dsf.Name, NpgsqlDbType.Text));
+            cmd.Parameters.Add(CreateParam(dsf.DatasheetFeedString, NpgsqlDbType.Text));
+            cmd.Parameters.Add(CreateParam(dsf.Comments, NpgsqlDbType.Text));
+            cmd.Parameters.Add(CreateParam(dsf.Status, NpgsqlDbType.Integer));
 
             dbConn.Open();
             int result = await cmd.ExecuteNonQueryAsync();
@@ -204,19 +212,14 @@ public class DatasheetFeedBroker :  IDatasheetFeedBroker
                                 STATUS = $6
                             WHERE ID = $7 ";
 
-            using NpgsqlCommand cmd = new(sql, dbConn)
-            {
-                Parameters =
-                {
-                    new() { Value = dsf.OrganizationId },
-                    new() { Value = dsf.UserId },
-                    new() { Value = dsf.Name },
-                    new() { Value = dsf.DatasheetFeedString },
-                    new() { Value = dsf.Comments },
-                    new() { Value = dsf.Status },
-                    new() { Value = dsf.Id }
-                }
-            };
+            using NpgsqlCommand cmd = new(sql, dbConn);
+            cmd.Parameters.Add(CreateParam(dsf.OrganizationId, NpgsqlDbType.Uuid));
+            cmd.Parameters.Add(CreateParam(dsf.UserId, NpgsqlDbType.Uuid));
+            cmd.Parameters.Add(CreateParam(dsf.Name, NpgsqlDbType.Text));
+            cmd.Parameters.Add(CreateParam(dsf.DatasheetFeedString, NpgsqlDbType.Text));
+            cmd.Parameters.Add(CreateParam(dsf.Comments, NpgsqlDbType.Text));
+            cmd.Parameters.Add(CreateParam(dsf.Status, NpgsqlDbType.Integer));
+            cmd.Parameters.Add(CreateParam(dsf.Id, NpgsqlDbType.Uuid));
 
           
 

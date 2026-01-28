@@ -78,12 +78,13 @@ public class DatasheetBroker : IDatasheetBroker
         try
         {
             using NpgsqlConnection dbConn = new(ConnectionString);
-            string sql = @"SELECT   ds.Id, ds.ORGANIZATIONID, ds.USERID, ds.NAME, 
-                                    ds.CREATEDDATE, ds.UPDATEDDATE, ds.STATUS, ds.COMMENTS, '' as DatasheetDoc, ds.REGIONSSTRING, ds.MATERIALTYPE
-                                    u.NAME as USERNAME 
-                            FROM DATASHEETS ds , USERS u
-                            WHERE ds.USERID = u.ID
-                            AND ds.ID = $1 ";
+            string sql = @"SELECT   ds.Id, ds.ORGANIZATIONID, ds.USERID, ds.NAME,
+                        ds.CREATEDDATE, ds.UPDATEDDATE, ds.STATUS, ds.COMMENTS,
+                        '' as DatasheetDoc, ds.REGIONSSTRING, ds.MATERIALTYPE,
+                        u.NAME as USERNAME
+                    FROM DATASHEETS ds , USERS u
+                    WHERE ds.USERID = u.ID
+                    AND ds.ID = $1 ";
 
             using NpgsqlCommand cmd = new(sql, dbConn)
             {
@@ -169,12 +170,12 @@ public class DatasheetBroker : IDatasheetBroker
                     new() { Value = ds.Id },
                     new() { Value = ds.OrganizationId },
                     new() { Value = ds.UserId },
-                    new() { Value = ds.Name },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.Name is null ? DBNull.Value : ds.Name },
                     new() { Value = ds.Status },
-                    new() { Value = ds.DatasheetString},
-                    new() { Value = ds.Comments },
-                    new() { Value = ds.RegionsString },
-                    new() { Value = ds.MaterialType }
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.DatasheetString is null ? DBNull.Value : ds.DatasheetString },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.Comments is null ? DBNull.Value : ds.Comments },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.RegionsString is null ? DBNull.Value : ds.RegionsString },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.MaterialType is null ? DBNull.Value : ds.MaterialType }
                 }
             };
 
@@ -220,12 +221,12 @@ public class DatasheetBroker : IDatasheetBroker
                 {
                     new() { Value = ds.OrganizationId },
                     new() { Value = ds.UserId },
-                    new() { Value = ds.Name },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.Name is null ? DBNull.Value : ds.Name },
                     new() { Value = ds.Status },
-                    new() { Value = ds.DatasheetString },
-                    new() { Value = ds.Comments },
-                    new() { Value = ds.RegionsString },
-                    new() { Value = ds.MaterialType },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.DatasheetString is null ? DBNull.Value : ds.DatasheetString },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.Comments is null ? DBNull.Value : ds.Comments },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.RegionsString is null ? DBNull.Value : ds.RegionsString },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = ds.MaterialType is null ? DBNull.Value : ds.MaterialType },
                     new() { Value = ds.Id },
 
                 }
